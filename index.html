@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Hacker Interface</title>
+
+<style>
+    body {
+        margin: 0;
+        background: black;
+        color: #00ff55;
+        font-family: "Courier New", monospace;
+        overflow: hidden;
+        transition: background 1s, color 1s;
+    }
+
+    #rain-canvas {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    #content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        text-align: center;
+        padding: 20px;
+    }
+
+    input {
+        margin-top: 20px;
+        background: #00ff55;
+        border: none;
+        color: black;
+        font-size: 20px;
+        padding: 10px 20px;
+        font-family: "Courier New", monospace;
+        outline: none;
+        border-radius: 4px;
+    }
+
+    /* Candado */
+    #lock-wrapper { margin-bottom: 20px; }
+    #lock-body, #lock-arc { transition: 0.5s ease; }
+    #lock-arc { transform-origin: bottom center; }
+    .unlock { transform: rotate(-45deg) translateY(-10px); }
+
+    #timer {
+        font-size: 22px;
+        margin-top: 10px;
+        color: #ff3333;
+        font-weight: bold;
+    }
+
+    #boot-screen {
+        position: fixed;
+        inset: 0;
+        background: black;
+        color: #00ff55;
+        font-family: "Courier New", monospace;
+        padding: 20px;
+        font-size: 16px;
+        overflow: hidden;
+        z-index: 9999;
+        animation: flicker 0.15s infinite alternate;
+    }
+
+    #boot-text { white-space: pre-wrap; }
+
+    @keyframes flicker {
+        from { opacity: 0.9; }
+        to { opacity: 1; }
+    }
+
+</style>
+</head>
+
+<body>
+
+<div id="boot-screen">
+    <pre id="boot-text"></pre>
+</div>
+
+<canvas id="rain-canvas"></canvas>
+
+<div id="content">
+    <div id="lock-wrapper">
+        <svg width="80" height="80" viewBox="0 0 24 24">
+            <path id="lock-arc" fill="#00ff55" d="M7 9V7a5 5 0 0110 0v2h-2V7a3 3 0 00-6 0v2H7z"/>
+            <rect id="lock-body" x="5" y="9" width="14" height="12" rx="2" ry="2" fill="#00ff55" />
+        </svg>
+    </div>
+
+    <div id="question"></div>
+    <div id="timer"></div>
+    <input id="answer" placeholder="Escribe la palabra clave...">
+</div>
+
+<script>
+// ------------ BOOT ------------
+const lines = [
+    ">> Inicializando sistema…",
+    ">> Cargando módulos…",
+    ">> Verificando integridad…",
+    ">> Estableciendo conexión segura…",
+    ">> Acceso concedido.",
+    "",
+    "Iniciando interfaz…"
+];
+let i = 0;
+const boot = document.getElementById("boot-text");
+
+function showNextLine() {
+    if (i < lines.length) {
+        boot.textContent += lines[i] + "\n";
+        i++;
+        setTimeout(showNextLine, 250 + Math.random() * 200);
+    } else {
+        setTimeout(() => {
+            document.getElementById("boot-screen").style.opacity = 0;
+            setTimeout(() => {
+                document.getElementById("boot-screen").remove();
+            }, 600);
+        }, 800);
+    }
+}
+showNextLine();
+
+// ------------ MATRIX ------------
+const canvas = document.getElementById("rain-canvas");
+const ctx = canvas.getContext("2d");
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+const letters = "01";
+const fontSize = 18;
+const columns = canvas.width / fontSize;
+let drops = [];
+for (let x = 0; x < columns; x++) drops[x] = 1;
+
+function draw() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = document.body.style.color || "#00ff55";
+    ctx.font = fontSize + "px Courier";
+
+    for (let i = 0; i < drops.length; i++) {
+        const text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+            drops[i] = 0;
+
+        drops[i]++;
+    }
+}
+setInterval(draw, 40);
+
+// ------------ PREGUNTAS ------------
+const questionEl = document.getElementById("question");
+const answerEl = document.getElementById("answer");
+const timerEl = document.getElementById("timer");
+let countdown = null;
+
+function normalize(str) {
+    return str
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
+const questions = [
+    { text: "1. Palabra clave obtenida:", answer: "scolica enchiriadis" },
+
+    { 
+        text: "2. Duermo en cuevas profundas o sobre montañas, mi aliento puede arrasar ciudades antiguas. Algunos me veneran, otros me temen… ¿quién soy?",
+        answer: "dragon",
+        timer: 30
+    },
+
+    {
+        text: "3. Soy un dinosaurio (creo que necesitas a agus en esta). Reinaba los cielos mucho antes de que existiera el hombre, pero no soy ave ni murciélago. Mis alas surcaban mares y montañas… ¿quién soy?",
+        answer: ["pterosaurio", "pterodactilo"],
+        timer: 30
+    }
+];
+
+let qIndex = 0;
+
+function startQuestion() {
+    questionEl.textContent = questions[qIndex].text;
+    answerEl.value = "";
+    timerEl.textContent = "";
+
+    if (questions[qIndex].timer) {
+        startTimer(questions[qIndex].timer);
+    }
+}
+
+function startTimer(seconds) {
+    let time = seconds;
+    timerEl.textContent = "Tiempo restante: " + time;
+
+    countdown = setInterval(() => {
+        time--;
+        timerEl.textContent = "Tiempo restante: " + time;
+
+        if (time <= 0) {
+            clearInterval(countdown);
+            loseScreen();
+        }
+    }, 1000);
+}
+
+function loseScreen() {
+    document.body.style.background = "red";
+    document.body.style.color = "#300";
+
+    setTimeout(() => {
+        window.close();
+    }, 1500);
+}
+
+startQuestion();
+
+// ------------ RESPUESTAS ------------
+answerEl.addEventListener("keyup", function(e) {
+    if (e.key === "Enter") {
+        const val = normalize(this.value.trim());
+
+        const q = questions[qIndex];
+
+        let correct = false;
+
+        if (Array.isArray(q.answer)) {
+            for (let a of q.answer) {
+                if (normalize(val) === normalize(a)) {
+                    correct = true;
+                }
+            }
+        } else {
+            if (normalize(val) === normalize(q.answer)) correct = true;
+        }
+
+        if (!correct) return;
+
+        // Acierto
+        if (qIndex === 0) {
+            document.getElementById("lock-arc").classList.add("unlock");
+            setTimeout(() => document.getElementById("lock-wrapper").remove(), 800);
+        }
+
+        if (countdown) clearInterval(countdown);
+        timerEl.textContent = "";
+
+        qIndex++;
+
+        if (qIndex < questions.length) {
+            startQuestion();
+        } else {
+            questionEl.textContent =
+            "El Praeludium en Do mayor, BWV 846 de Johann Sebastian Bach, parte del Clave bien temperado (1722), fue compuesto originalmente para clavicémbalo y es uno de los ejemplos más famosos de música para teclado barroca que se toca hoy en piano moderno. Es un preludio en Do mayor, luminoso y claro, construido sobre un patrón continuo de arpegios que recorre armonías sencillas pero elegantes, combinando melodía y acompañamiento en un flujo armónico constante. La obra tenía un propósito tanto pedagógico como interpretativo, enseñando digitación, coordinación de manos y comprensión de la armonía dentro del sistema temperado de la época. Su estructura sencilla pero expresiva, junto con la adaptabilidad a distintos instrumentos, la convierte en una pieza esencial tanto para estudiantes como para intérpretes profesionales.";
+
+            answerEl.remove();
+            timerEl.textContent = "";
+        }
+    }
+});
+
+</script>
+
+</body>
+</html>
+
+
